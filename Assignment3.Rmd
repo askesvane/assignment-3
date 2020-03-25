@@ -138,8 +138,9 @@ priorDiagnosis <- c(
 
 ```
 
-Voice Hearing
+AI ~ Voice Hearing
 ```{r}
+
 # Define the formula
 AltercentricVoiceHearing_f0 <- bf(
   AltercentricIntrusion ~ 1 + VoiceHearing)
@@ -170,7 +171,7 @@ pp_check(AltercentricVoiceHearing_PriorCheck_m, nsamples = 100)
 
 ## Fitting the model
 AltercentricVoiceHearing_m <- brm(
-  formula = AltercentricVoiceHearing_f,
+  formula = AltercentricVoiceHearing_f0,
   data = d2,
   family = gaussian,
   prior = priorVoiceHearing,
@@ -185,7 +186,7 @@ AltercentricVoiceHearing_m
 
 ```
 
-Apathy
+AI ~ Apathy
 ```{r}
 # Define the formula
 AltercentricApathy_f <- bf(
@@ -235,7 +236,7 @@ AltercentricApathy_m
 
 ```
  
-Mind Reading
+AI ~ Mind Reading
 ```{r}
 
 
@@ -315,7 +316,7 @@ get_prior(MindVoice, family = gaussian, d2)
 
 prior_MindVoice <- c(
   prior(normal(4, 1), class = Intercept), # It is a good guess that when voice hearing and mind reading er mean, 
-  prior(normal(0.1, 1), class = b),       # så er AI også
+  prior(normal(0.1, 1), class = b),       # s? er AI ogs?
   prior(normal(1, 2), class = sigma) # average error we expect
 ) 
 
@@ -366,7 +367,7 @@ get_prior(MindApathy, family = gaussian, d2)
 
 prior_MindApathy <- c(
   prior(normal(4, 1), class = Intercept), # It is a good guess that when voice hearing and mind reading er mean, 
-  prior(normal(0.1, 1), class = b, coef = M_MindReading),# så er AI også
+  prior(normal(0.1, 1), class = b, coef = M_MindReading),# s? er AI ogs?
   prior(normal(-0.5, 1), class = b, coef = M_Apathy),
   prior(normal(1, 2), class = sigma) # average error we expect
 ) 
@@ -415,7 +416,7 @@ get_prior(VoiceApathy, family = gaussian, d2)
 
 prior_VoiceApathy <- c(
   prior(normal(4, 1), class = Intercept), # It is a good guess that when voice hearing and mind reading er mean, 
-  prior(normal(0.1, 1), class = b, coef = M_VoiceHearing),# så er AI også
+  prior(normal(0.1, 1), class = b, coef = M_VoiceHearing),# s? er AI ogs?
   prior(normal(-0.5, 1), class = b, coef = M_Apathy),
   prior(normal(1, 2), class = sigma) # average error we expect
 ) 
@@ -465,9 +466,9 @@ get_prior(VoiceMindApathy, family = gaussian, d2)
 
 prior_VoiceMindApathy <- c(
   prior(normal(4, 1), class = Intercept), # It is a good guess that when voice hearing and mind reading er mean, 
-  prior(normal(0.1, 1), class = b, coef = M_VoiceHearing),# så er AI også
+  prior(normal(0.1, 1), class = b, coef = M_VoiceHearing),# s? er AI ogs?
   prior(normal(0.1, 1), class = b, coef = M_MindReading),
-  prior(normal(-0.5, 1), class = b, coef = M_Apathy),
+  prior(normal(-0.1, 1), class = b, coef = M_Apathy),
   prior(normal(1, 2), class = sigma) # average error we expect
 ) 
 
@@ -502,6 +503,31 @@ pp_check(VoiceMindApathy_m2, nsamples = 100)
 VoiceMindApathy_m2
 
 
+# Plot 
+stanplot(VoiceMindApathy_m2)
+
+
+```
+
+
+Plot the predictors 
+```{r}
+
+
+# Hypothesis testing + updating check
+#plot(hypothesis(VoiceMindApathy_m2,
+#           "VoiceHearing > Intercept")) # shows that the posterior has learned from the data 
+
+#hypothesis(AltercentricDiagnosis_m,
+#           "DiagnosisSchizophrenia > DiagnosisControls")
+
+conditional_effects(VoiceMindApathy_m2)
+
+plot(conditional_effects(VoiceMindApathy_m2), points=T)
+
+
+
+
 ```
 
 
@@ -510,7 +536,74 @@ VoiceMindApathy_m2
 
 Q2.1) However, we know that the diagnosis is based on symptom assessment: if the overall sum of symptoms is severe enough, the participant gets a diagnosis. In other words, by selecting the patients, and including the symptoms in the model we might have inadvertently introduced an issue in our inference. Do try to draw a causal graph (Directed Acyclical Graph) of the variables and compare it with the types of causal graphs presented in the slides. Discuss which biases you might have introduced.
 
+
 Q2.2.) Redesign your analysis following the graph and report how the results change
+```{r}
+# Mena center all the data
+d_m <- d %>% mutate(
+  M_VoiceHearing = VoiceHearing - mean(VoiceHearing),
+  M_MindReading = MindReading - mean(MindReading),
+  M_Apathy = Apathy - mean(Apathy)
+)
+
+
+# Define the formula
+VoiceMindApathy <- bf(
+  AltercentricIntrusion ~ 1 + M_VoiceHearing + M_MindReading + M_Apathy)
+
+
+# Design the priors
+get_prior(VoiceMindApathy, family = gaussian, d_m)
+
+prior_VoiceMindApathy <- c(
+  prior(normal(4, 1), class = Intercept), # It is a good guess that when voice hearing and mind reading er mean, 
+  prior(normal(0.1, 1), class = b, coef = M_VoiceHearing),# s? er AI ogs?
+  prior(normal(0.1, 1), class = b, coef = M_MindReading),
+  prior(normal(-0.1, 1), class = b, coef = M_Apathy),
+  prior(normal(1, 2), class = sigma) # average error we expect
+) 
+
+
+# Test the priors
+VoiceMindApathy_m3 <- brm(
+  formula = VoiceMindApathy,
+  data = d_m,
+  family = gaussian,
+  prior = prior_VoiceMindApathy,
+  sample_prior = "only" # meaning we don't take the data into account
+)
+
+
+# check how the prediction given only the priors and not the data will look like 
+pp_check(VoiceMindApathy_m3, nsamples = 100)
+
+
+## Fitting the model
+VoiceMindApathy_m4 <- brm(
+  formula = VoiceMindApathy,
+  data = d_m,
+  family = gaussian,
+  prior = prior_VoiceMindApathy,
+  sample_prior = T # only change, now we take data into account
+)
+
+# Posterior predictive check
+pp_check(VoiceMindApathy_m4, nsamples = 100)
+
+## Check the model for warnings
+VoiceMindApathy_m4
+
+
+# Plot 
+stanplot(VoiceMindApathy_m4)
+conditional_effects(VoiceMindApathy_m4)
+plot(conditional_effects(VoiceMindApathy_m4), points=T)
+
+
+
+```
+
+
 
 
 ## Third part
@@ -520,52 +613,4 @@ These issues are very difficult to think through, and not knowing the causal mec
 Q3.1) Look through the code and identify whether the results you have match the underlying truth. Discuss what you have learned.
 
 Q3.2) OPTIONAL: is this a general pattern? Try varying the parameters (e.g. correlation values) and assess whether the new dataset(s) leads to the same biases in your analysis.
-
-
-
-```{r}
-pacman::p_load(MASS, tidyverse, psych)
-
-seed <- 1981 # Defining a seed so the results are always the same
-n <- 300 # Defining the amount of participants
-
-SymptomCorr <- .2 # Defining the correlation of symptoms (as they tend to co-occur)
-EffectCorrRel <- .2 # Defining the correlation between relevant symptoms and effect (Some symptoms are positively correlated with the effect)
-EffectCorrIrrel <- 0 # Defining the correlation between irrelevant symptoms and effect (none)
-
-# Creating the variance-covariance matrix for the variables we want to generate (3 symptoms, 1 effect)
-Sigma <- matrix(data=c(1,SymptomCorr,SymptomCorr,EffectCorrRel,
-                       SymptomCorr,1,SymptomCorr,EffectCorrRel,
-                       SymptomCorr,SymptomCorr,1,EffectCorrIrrel,
-                       EffectCorrRel,EffectCorrRel,EffectCorrIrrel,1),
-                       nrow=4,ncol=4)
-
-## Generate data from a multivariate (mvr) normal (n) distribution
-d <- mvrnorm(n = n, # number of participant
-        mu = c(1.2, 1.2, 1.2, 4), # mean of each variable
-        Sigma) # variance co-variance matrix
-
-# Giving meaningful names to variables and add ID
-d <- data.frame(
-  VoiceHearing = d[,1], 
-  MindReading =  d[,2],
-  Apathy =  d[,3], 
-  AltercentricIntrusion = d[,4],
-  ID = seq(nrow(d)))
-
-# Assessing whether the participant has schizophrenia (high enough sum of symptoms)
-# Here we choose participants scoring above 75% percentile (the most severe ones)
-d$Diagnosis <- 0
-d$Diagnosis[(d$VoiceHearing + d$MindReading + d$Apathy) > 
-              quantile(d$VoiceHearing + d$MindReading + d$Apathy, .75)] <-1
-
-## Plotting the relation between variables in schizophrenia
-d1 <- d %>% subset(Diagnosis==1) %>% dplyr::select(-Diagnosis, -ID)
-pairs.panels(d1)
-
-## Plotting the relation between variables all participants
-pairs.panels(dplyr::select(d,-Diagnosis, -ID))
-
-write_csv(d, "data/Ass3.csv")
-```
 
